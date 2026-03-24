@@ -3,11 +3,13 @@ package org.example;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.IntStream;
-
 
 
 //Dla poniższego zadania, zawsze eventy trafiały na jedna partycje
@@ -25,17 +27,18 @@ import java.util.stream.IntStream;
 // --------------> przy zmianie BATCH_SIZE_CONFIG z default na 1, kafka zaczela rozrzucac wiadomosci
 
 public class ProducerDemo {
-//    private static final Logger LOGGER = LoggerFactory.getLogger(ProducerDemo.class);
-private static final String BOOTSTRAP_SERVER = "localhost:9092";
+    //    private static final Logger LOGGER = LoggerFactory.getLogger(ProducerDemo.class);
+    private static final String BOOTSTRAP_SERVER = "localhost:9092";
+    private static final String TOPIC = "pure_topic";
+
     public static void main(String[] args) {
-//        LOGGER.info("Hello and welcome!");
 
         //create producer properties
         Properties properties = new Properties();
         properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP_SERVER);
         properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
         properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        properties.setProperty(ProducerConfig.BATCH_SIZE_CONFIG, "1");
+        properties.setProperty(ProducerConfig.BATCH_SIZE_CONFIG, "10");
 
 
         //Ten obiekt będzie odpowiedzialny za wysyłanie wiadomości do serwera kafka
@@ -43,18 +46,22 @@ private static final String BOOTSTRAP_SERVER = "localhost:9092";
         KafkaProducer<String, String> producer = new KafkaProducer<>(properties);
 
         //Przy kazdym uruchomieniu aplikacji, dane byly wyslane na inna partycje. - Zadziałał tutaj 2 mechanizmy optymalizacji. StickyPartitioner oraz Batching
-        IntStream.rangeClosed(1, 10).forEach(value -> {
+        IntStream.rangeClosed(1, 5).forEach(value -> {
             //Stworzenie danych
-            ProducerRecord<String, String> record = new ProducerRecord<>("testovirone", "Hellow WorldX-" + value);
+            ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, "Hellow WorldX-" + value);
             //send message
             try {
                 Thread.sleep(3_000L);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            producer.send(record);
+            Future<RecordMetadata> send = producer.send(record);
+            try {
+                System.out.println(send.get().toString());
+            } catch (InterruptedException | ExecutionException e) {
+                throw new RuntimeException(e);
+            }
         });
-
 
         //close producer
         producer.flush(); //Wszystkie buforowane wiadomosci zostana wysłane przed zamknięciem producenta
